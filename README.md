@@ -75,34 +75,12 @@ This will open `mpvRecall` in your default web browser.
    - The next launch of `mpvRecall` will show the **🔄 Resume Last Session** section.  
    - Click **▶️ Resume Last Session** to pick up from where you left off.
 
----
-
-## ⚙️ Configuration & Customization
-
-- **Cache File:**  
-  Stored at `~/.cache/mpv_recall_last.json`.  
-  You can inspect or modify it manually if needed.
-
-- **Supported File Types:**  
-  The `MEDIA_EXTS` set in the script defines supported file extensions.  
-  You can add/remove extensions (e.g., `.flac`, `.webm`) to match your needs.
 
 ---
 
-## ⚠️ Important Notes
-
-- **mpv Output Logs:**  
-  If something goes wrong, check the **"Show raw mpv output"** section in the UI for debugging.
-
-- **Zenity Dependency:**  
-  If `zenity` is missing, file/folder selection will fail.
-
-- **Lua Script Handling:**  
-  When resuming from a folder playlist, a temporary Lua script is created at `/tmp/mpv_resume_script.lua`. It is deleted after playback ends.
-
----
-
-## 🙏 Credits
+## Credits
 
 - Built using [mpv](https://mpv.io/) and [Streamlit](https://streamlit.io/)  
 - File dialogs powered by [Zenity](https://help.gnome.org/users/zenity/stable/index.html.en)
+
+![App Screenshot](demo.png)

@@ -7,10 +7,34 @@ import datetime
 
 # Path to store last-played information
 CACHE_PATH = os.path.expanduser("~/.cache/mpv_recall_last.json")
-# Common media extensions
-MEDIA_EXTS = {'.mp4', '.mkv', '.avi', '.mp3', '.flac', '.mov', '.webm', '.ogg', '.wav'}
 
 # --- Core Functions ---
+
+import os
+import datetime
+import subprocess
+
+def get_file_metadata(path):
+    size = os.path.getsize(path)
+    mtime = datetime.datetime.fromtimestamp(os.path.getmtime(path))
+    # use ffprobe to get duration in seconds
+    cmd = [
+        "ffprobe","-v","error",
+        "-show_entries","format=duration",
+        "-of","default=noprint_wrappers=1:nokey=1",
+        path
+    ]
+    try:
+        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
+        duration = float(out.strip())
+    except Exception:
+        duration = 0
+    return {
+        "size_str": f"{size/1024**3:.2f} GB" if size>1024**2 else f"{size/1024:.2f} MB",
+        "duration_str": str(datetime.timedelta(seconds=int(duration))),
+        "modified_str": mtime.strftime("%Y‑%m‑%d %H:%M")
+    }
+
 
 def load_last():
     """Loads the last played media information from the cache file."""
@@ -135,7 +159,7 @@ def get_media_files(folder):
         return sorted([
             os.path.join(folder, f)
             for f in os.listdir(folder)
-            if os.path.splitext(f)[1].lower() in MEDIA_EXTS and os.path.isfile(os.path.join(folder, f))
+            if os.path.isfile(os.path.join(folder, f))
         ])
     except Exception:
         return []
@@ -193,11 +217,12 @@ st.markdown("""
 }
 
 .selection-card {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    background: linear-gradient(135deg, #5a4dae 0%, #52377f 100%);
+    color: #fff;  
     padding: 1.5rem;
     border-radius: 1rem;
     margin: 1rem 0;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .stButton > button {
@@ -311,12 +336,10 @@ if st.session_state['selected_path']:
     icon = "📁" if is_folder else "📄"
     st.markdown(f"""
     <div class="selection-card">
-        <h3>{icon} Selected Media</h3>
-        <div class="session-info">
-            <code style="background: rgba(255,255,255,0.2); padding: 0.5rem; border-radius: 0.25rem; word-break: break-all;">
-                {path}
-            </code>
-        </div>
+    <h3>{icon} Selected Media</h3>
+    <div class="session-info">
+        {path}<br>
+    </div>
     </div>
     """, unsafe_allow_html=True)
 
