@@ -6,13 +6,9 @@ import re
 import datetime
 
 # Path to store last-played information
-CACHE_PATH = os.path.expanduser("~/.cache/mpv_recall_last.json")
+CACHE_PATH = os.path.expanduser("~/.cache/mpv_recall_sessions.json") # Changed cache file name
 
 # --- Core Functions ---
-
-import os
-import datetime
-import subprocess
 
 def get_file_metadata(path):
     size = os.path.getsize(path)
@@ -35,9 +31,8 @@ def get_file_metadata(path):
         "modified_str": mtime.strftime("%Y‑%m‑%d %H:%M")
     }
 
-
-def load_last():
-    """Loads the last played media information from the cache file."""
+def load_all_sessions():
+    """Loads all saved media session information from the cache file."""
     if os.path.exists(CACHE_PATH):
         try:
             with open(CACHE_PATH, 'r') as f:
@@ -46,11 +41,11 @@ def load_last():
             return {}
     return {}
 
-def save_last(info):
-    """Saves media information to the cache file."""
+def save_session_data(sessions):
+    """Saves the entire sessions dictionary to the cache file."""
     os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
     with open(CACHE_PATH, 'w') as f:
-        json.dump(info, f, indent=2)
+        json.dump(sessions, f, indent=2)
 
 def play(path_to_play, start_pos=None, playlist_start_index=None, resume_specific_file=None):
     """
@@ -132,7 +127,7 @@ mp.register_event("file-loaded", on_file_loaded)
             h, m, s = map(int, parts)
             position = float(h * 3600 + m * 60 + s)
             
-            if position > 2:
+            if position > 2: # Save only if position is significant (more than 2 seconds)
                 return {"path": file_path, "position": position}
         except (ValueError, IndexError):
             return None
@@ -155,11 +150,12 @@ def pick_file_or_folder(mode="file"):
 
 def get_media_files(folder):
     """Gets a sorted list of all media files in a given folder (non-recursive)."""
+    media_extensions = ('.mp4', '.mkv', '.avi', '.mov', '.flv', '.webm', '.mp3', '.wav', '.ogg') # Add more as needed
     try:
         return sorted([
             os.path.join(folder, f)
             for f in os.listdir(folder)
-            if os.path.isfile(os.path.join(folder, f))
+            if os.path.isfile(os.path.join(folder, f)) and f.lower().endswith(media_extensions)
         ])
     except Exception:
         return []
@@ -201,6 +197,7 @@ st.markdown("""
     border-radius: 1rem;
     margin: 1rem 0;
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    color: white; /* Ensure text is visible on the gradient background */
 }
 
 .session-card h3 {
@@ -214,6 +211,7 @@ st.markdown("""
     padding: 1rem;
     border-radius: 0.5rem;
     margin: 0.5rem 0;
+    word-wrap: break-word; /* Ensure long paths wrap */
 }
 
 .selection-card {
@@ -246,70 +244,93 @@ st.markdown('<p class="subtitle">🎬 Resume your media exactly where you left o
 if 'selected_path' not in st.session_state:
     st.session_state['selected_path'] = None
 
-# --- Section: Resume Last Played ---
-st.markdown("### 🔄 Resume Last Session")
+# --- Section: Resume Saved Sessions ---
+st.markdown("### 🔄 Saved Sessions")
 
-last_played_info = load_last()
-if last_played_info and 'last_played_file' in last_played_info:
-    # Display information about the last session
-    last_file = last_played_info['last_played_file']
-    last_pos_sec = last_played_info.get('last_played_position', 0)
-    last_pos_hms = str(datetime.timedelta(seconds=int(last_pos_sec)))
-    original_path = last_played_info.get('path')
+all_sessions = load_all_sessions()
 
-    st.markdown(f"""
-    <div class="session-card">
-        <h3>📺 Last Watched</h3>
-        <div class="session-info">
-            <strong>File:</strong> {os.path.basename(last_file)}<br>
-            <strong>Position:</strong> {last_pos_hms}<br>
-            <strong>Location:</strong> {original_path}
+if all_sessions:
+    # Sort sessions by last played timestamp, newest first
+    sorted_sessions = sorted(
+        all_sessions.items(), 
+        key=lambda item: item[1].get('last_played_timestamp', ''), 
+        reverse=True
+    )
+
+    for original_path, session_data in sorted_sessions:
+        last_file = session_data['last_played_file']
+        last_pos_sec = session_data.get('last_played_position', 0)
+        last_pos_hms = str(datetime.timedelta(seconds=int(last_pos_sec)))
+        is_folder_session = session_data.get('is_folder', False)
+        session_type = "Folder" if is_folder_session else "File"
+        last_played_ts = session_data.get('last_played_timestamp')
+        
+        st.markdown(f"""
+        <div class="session-card">
+            <h3>{session_type}: {os.path.basename(original_path)}</h3>
+            <div class="session-info">
+                <strong>Current File:</strong> {os.path.basename(last_file)}<br>
+                <strong>Position:</strong> {last_pos_hms}<br>
+                <strong>Last Played:</strong> {last_played_ts if last_played_ts else 'N/A'}<br>
+                <strong>Path:</strong> {original_path}
+            </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    if st.button("▶️ Resume Last Session", use_container_width=True, type="primary"):
-        if not os.path.exists(original_path):
-            st.error("⚠️ Original file or folder not found. It may have been moved or deleted.")
-        else:
-            # --- MODIFIED RESUME LOGIC ---
-            is_folder_session = last_played_info.get('is_folder', False)
-            path_to_play = original_path
-            playlist_start_idx = None
-            resume_file = None
+        col_resume, col_delete = st.columns([0.7, 0.3])
+        with col_resume:
+            if st.button(f"▶️ Resume {os.path.basename(original_path)}", key=f"resume_{original_path}", use_container_width=True, type="primary"):
+                if not os.path.exists(original_path):
+                    st.error("⚠️ Original file or folder not found. It may have been moved or deleted.")
+                    # Optionally remove the stale entry
+                    del all_sessions[original_path]
+                    save_session_data(all_sessions)
+                    st.rerun()
+                else:
+                    with st.spinner("🎬 Resuming playback..."):
+                        st.info("The app will wait until mpv closes.")
+                    
+                    path_to_play = original_path
+                    playlist_start_idx = None
+                    resume_file = None
 
-            if is_folder_session:
-                with st.spinner("🎬 Resuming folder playlist..."):
-                    st.info("The app will wait until mpv closes.")
-                # For a folder, find the index of the specific file to start on
-                media_files = get_media_files(original_path)
-                if last_file in media_files:
-                    # Python's .index() is 0-based, which matches mpv's --playlist-start
-                    playlist_start_idx = media_files.index(last_file)
-                    resume_file = last_file
-            else:
-                with st.spinner("🎬 Resuming file..."):
-                    st.info("The app will wait until mpv closes.")
-            
-            exit_info = play(
-                path_to_play=original_path,  # Always pass the original path
-                start_pos=last_pos_sec, 
-                playlist_start_index=playlist_start_idx,
-                resume_specific_file=resume_file
-            )
-            
-            if exit_info:
-                # Update cache with the new exit information
-                last_played_info['last_played_file'] = exit_info['path']
-                last_played_info['last_played_position'] = exit_info['position']
-                save_last(last_played_info)
-                st.success("✅ Playback stopped. New position saved!")
-                st.rerun()
-            else:
-                st.warning("⚠️ Playback finished or no position was saved.")
+                    if is_folder_session:
+                        media_files = get_media_files(original_path)
+                        if last_file in media_files:
+                            playlist_start_idx = media_files.index(last_file)
+                            resume_file = last_file
+                        else:
+                            st.warning(f"File '{os.path.basename(last_file)}' not found in folder '{os.path.basename(original_path)}'. Starting folder from beginning.")
+                            last_pos_sec = 0 # Reset position if file not found
+                            playlist_start_idx = 0
 
+                    exit_info = play(
+                        path_to_play=original_path,
+                        start_pos=last_pos_sec,
+                        playlist_start_index=playlist_start_idx,
+                        resume_specific_file=resume_file
+                    )
+                    
+                    if exit_info:
+                        # Update specific session with new info
+                        all_sessions[original_path]['last_played_file'] = exit_info['path']
+                        all_sessions[original_path]['last_played_position'] = exit_info['position']
+                        all_sessions[original_path]['last_played_timestamp'] = datetime.datetime.now().isoformat()
+                        save_session_data(all_sessions)
+                        st.success("✅ Playback stopped. New position saved!")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ Playback finished or no position was saved.")
+        with col_delete:
+            if st.button("🗑️ Delete", key=f"delete_{original_path}", use_container_width=True):
+                if original_path in all_sessions:
+                    del all_sessions[original_path]
+                    save_session_data(all_sessions)
+                    st.success(f"🗑️ Session for {os.path.basename(original_path)} deleted.")
+                    st.rerun()
+        st.markdown("---") # Separator for each session
 else:
-    st.info("💡 No previous playback data found. Play something new to begin!")
+    st.info("💡 No saved playback sessions found. Play something new to begin!")
 
 st.markdown("---")
 
@@ -352,13 +373,16 @@ if st.session_state['selected_path']:
                 exit_info = play(path)
 
             if exit_info:
+                all_sessions = load_all_sessions() # Reload to get latest state
                 info_to_save = {
-                    "path": path,
+                    "path": path, # Store the original selection path as the key
                     "is_folder": is_folder,
                     "last_played_file": exit_info['path'],
-                    "last_played_position": exit_info['position']
+                    "last_played_position": exit_info['position'],
+                    "last_played_timestamp": datetime.datetime.now().isoformat()
                 }
-                save_last(info_to_save)
+                all_sessions[path] = info_to_save # Use path as the key
+                save_session_data(all_sessions)
                 st.success(f"✅ Playback stopped. Position saved for {os.path.basename(exit_info['path'])}.")
                 st.session_state['selected_path'] = None
                 st.rerun()
