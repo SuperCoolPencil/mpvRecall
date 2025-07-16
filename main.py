@@ -267,9 +267,9 @@ if all_sessions:
         
         st.markdown(f"""
         <div class="session-card">
-            <h3>{session_type}: {os.path.basename(original_path)}</h3>
+            <h3>{os.path.basename(last_file)}</h3>
             <div class="session-info">
-                <strong>Current File:</strong> {os.path.basename(last_file)}<br>
+                <strong>Playing {session_type}:</strong> {os.path.basename(original_path)}<br>
                 <strong>Position:</strong> {last_pos_hms}<br>
                 <strong>Last Played:</strong> {last_played_ts if last_played_ts else 'N/A'}<br>
                 <strong>Path:</strong> {original_path}
