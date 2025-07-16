@@ -73,7 +73,7 @@ def play(path_to_play, start_pos=None, playlist_start_index=None, resume_specifi
         # Create a simple Lua script that seeks only on the first file load
         script_content = f'''
 local sought = false
-local target_time = {start_pos}
+local target_time = {max(start_pos-5,0)}
 
 function on_file_loaded()
     if not sought then
