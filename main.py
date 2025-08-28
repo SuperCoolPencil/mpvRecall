@@ -389,6 +389,17 @@ if st.session_state['selected_path']:
             else:
                 st.warning("⚠️ Playback finished or no position was saved.")
 
+# --- Add Close Button ---
+if st.button("🛑 Close mpvRecall", use_container_width=True, type="secondary"):
+    st.info("Closing application... The browser tab will become unresponsive.")
+    st.markdown("<p style='text-align: center; color: #e74c3c;'>You can close this browser tab now.</p>", unsafe_allow_html=True)
+    # Give Streamlit a moment to render the message before exiting
+    # This sleep is not guaranteed to work in all environments or for all users
+    # but it's a common attempt to allow the UI to update.
+    import time
+    time.sleep(1) 
+    os._exit(0) # Forcefully exit the Python process
+
 # Footer
 st.markdown("---")
 st.markdown(
